@@ -4,14 +4,17 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
-# Provisional "healthy" reference for this tool's own load tests: sustained dense BF16 GEMM
-# (n=8192) and device-to-device copy bandwidth counted as read+write. Starting points from vendor
-# specs and public measurements; they are being calibrated against nodes TokenWatt measures.
-# Matched against nvidia-smi's GPU name, most specific first.
+# "Healthy" reference for this tool's own load tests: sustained dense BF16 GEMM (n=8192), the SM
+# clock during that GEMM, and device-to-device copy bandwidth counted as read+write. Entries marked
+# "measured" come from cards TokenWatt ran this tool on; the rest are provisional (vendor specs and
+# public measurements) until we measure one. Matched against nvidia-smi's name, most specific first.
+#
+# A dense GEMM pulls a healthy card to its power limit, so its clock sits well below clocks.max.sm
+# (an H100 SXM at 700 W holds ~1,360 MHz of 1,980). The clock check compares against `gemm_mhz`.
 REFERENCE = [
     ("H100 NVL", {"tflops": 550, "tb_s": 3.3}),
     ("H100 PCIe", {"tflops": 450, "tb_s": 1.7}),
-    ("H100", {"tflops": 650, "tb_s": 2.7}),          # SXM, 80GB HBM3
+    ("H100", {"tflops": 680, "tb_s": 3.0, "gemm_mhz": 1360, "measured": "RunPod Secure Cloud, 700 W, 2026-10-09"}),  # SXM
     ("H200", {"tflops": 700, "tb_s": 4.0}),
     ("B200", {"tflops": 1400, "tb_s": 6.5}),
     ("A100-SXM4-80GB", {"tflops": 270, "tb_s": 1.7}),
@@ -60,12 +63,18 @@ def evaluate(inv: dict, load: dict, host_disk: dict, host_net: dict) -> tuple[st
 
     gemm = load.get("matmul") or {}
     tel = gemm.get("telemetry") or {}
-    # clocks under load
+    # clocks under load: against a healthy card's clock in the same GEMM when we have one,
+    # otherwise against clocks.max.sm with looser thresholds
+    ref = reference_for(inv.get("name"))
     mxclk, clk = inv.get("clocks.max.sm"), tel.get("sm_mhz_mean")
-    if isinstance(mxclk, (int, float)) and isinstance(clk, (int, float)) and mxclk:
-        r = clk / mxclk
+    base = (ref[1].get("gemm_mhz") if ref else None) or None
+    if isinstance(clk, (int, float)) and (base or (isinstance(mxclk, (int, float)) and mxclk)):
+        r = clk / (base or mxclk)
+        if not base:
+            r = min(1.0, r / 0.7)            # a healthy card at its power limit runs ~70% of max under GEMM
         metrics["clock_under_load_pct"] = round(r * 100)
-        msg = f"SM clock under load averaged {clk:.0f} MHz of {mxclk:.0f} MHz max ({r:.0%})"
+        msg = (f"SM clock during the matmul averaged {clk:.0f} MHz — {r:.0%} of a healthy {ref[0]} ({base} MHz)"
+               if base else f"SM clock during the matmul averaged {clk:.0f} MHz of {mxclk:.0f} MHz max")
         if r < 0.6:
             f.append(Finding("FAIL", "clocks under load", msg + ".",
                              "Far below normal. Possible causes: aggressive power cap, poor cooling or power delivery, a degraded card. Ask for another machine."))
@@ -84,7 +93,6 @@ def evaluate(inv: dict, load: dict, host_disk: dict, host_net: dict) -> tuple[st
         f.append(Finding("INFO", "throttling", f"Running at its power limit for {reasons['sw_power_cap']:.0%} of the load test (normal under full load)."))
 
     # compute and bandwidth vs reference
-    ref = reference_for(inv.get("name"))
     for key, val, unit, label in (("tflops", gemm.get("tflops"), "TFLOPS", "BF16 matmul"),
                                   ("tb_s", (load.get("copy") or {}).get("tb_s"), "TB/s", "memory copy bandwidth")):
         if not isinstance(val, (int, float)):
@@ -134,9 +142,10 @@ def evaluate(inv: dict, load: dict, host_disk: dict, host_net: dict) -> tuple[st
     if isinstance(mb, (int, float)):
         metrics["download_mbit_s"] = mb
         mins = host_net.get("minutes_per_100gb")
-        f.append(Finding("WARN" if mb < 1000 else "PASS", "download", f"{mb:,} Mbit/s from Hugging Face" +
+        # single-stream download; the same host measured 0.9 and 9.5 Gbit/s on different days, so only flag clearly slow links
+        f.append(Finding("WARN" if mb < 500 else "PASS", "download", f"{mb:,} Mbit/s from Hugging Face, one stream" +
                          (f" (~{mins} min per 100 GB of weights)." if mins else "."),
-                         "You pay for the minutes spent downloading weights." if mb < 1000 else ""))
+                         "You pay for the minutes spent downloading weights." if mb < 500 else ""))
 
     order = {"FAIL": 3, "WARN": 2, "PASS": 1, "INFO": 0}
     worst = max((order[x.level] for x in f), default=0)

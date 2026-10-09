@@ -13,7 +13,7 @@ def test_demo_verdicts():
     assert run("capped-h100")[0] == "WARN"
     overall, findings, metrics = run("throttled-h100")
     assert overall == "FAIL"
-    assert metrics["clock_under_load_pct"] == 40
+    assert metrics["clock_under_load_pct"] < 60
     assert any(f.check == "clocks under load" and f.level == "FAIL" for f in findings)
 
 

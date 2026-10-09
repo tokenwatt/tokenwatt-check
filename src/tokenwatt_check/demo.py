@@ -1,8 +1,9 @@
 """Example inputs for --demo, modeled on three H100 SXM nodes TokenWatt rented in October 2026.
 
-Power limits, clocks and host speeds are the values we read on those machines. The matmul and copy
-figures are illustrative: scaled from each node's measured clock, because those runs predate this
-tool's load test.
+The healthy example is a real tokenwatt-check run (RunPod Secure Cloud H100, 2026-10-09). The capped
+and throttled examples use the power limits, inference-load clocks and host speeds we read on two
+Vast.ai hosts; their matmul clocks and throughput are estimated from those readings, because those
+runs predate this tool's load test.
 """
 
 
@@ -24,10 +25,10 @@ def _h100(name, power_limit, clk, tflops, tb_s, disk_w, mbit, reasons, note):
 
 
 DEMOS = {
-    "healthy-h100": _h100("demo-healthy", 700, 1890, 660, 2.75, 3400, 9400, {"sw_power_cap": 0.3},
+    "healthy-h100": _h100("demo-healthy", 700, 1359, 682.3, 3.05, 1726, 9400, {"sw_power_cap": 1.0},
                           "healthy H100 SXM (modeled on a RunPod Secure Cloud node)"),
-    "capped-h100": _h100("demo-capped", 525, 1500, 560, 2.65, 4400, 6000, {"sw_power_cap": 1.0},
+    "capped-h100": _h100("demo-capped", 525, 1150, 575, 2.9, 4400, 6000, {"sw_power_cap": 1.0},
                          "power-capped H100 SXM (modeled on a Vast.ai datacenter host capped at 525 W)"),
-    "throttled-h100": _h100("demo-throttled", 500, 787, 262, 2.2, 1616, 2100, {"sw_power_cap": 1.0},
+    "throttled-h100": _h100("demo-throttled", 500, 560, 280, 2.2, 1616, 2100, {"sw_power_cap": 1.0},
                             "under-performing H100 SXM (modeled on a Vast.ai community host: 787 MHz at a 500 W cap)"),
 }
