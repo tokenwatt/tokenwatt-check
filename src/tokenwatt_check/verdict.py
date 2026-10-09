@@ -15,7 +15,7 @@ REFERENCE = [
     ("H100 NVL", {"tflops": 550, "tb_s": 3.3}),
     ("H100 PCIe", {"tflops": 450, "tb_s": 1.7}),
     ("H100", {"tflops": 680, "tb_s": 3.0, "gemm_mhz": 1360, "measured": "RunPod Secure Cloud, 700 W, 2026-10-09"}),  # SXM
-    ("H200", {"tflops": 700, "tb_s": 4.0}),
+    ("H200", {"tflops": 660, "tb_s": 4.3, "gemm_mhz": 1460, "measured": "RunPod Secure Cloud, 700 W, 2026-10-09"}),
     ("B200", {"tflops": 1400, "tb_s": 6.5}),
     ("A100-SXM4-80GB", {"tflops": 270, "tb_s": 1.7}),
     ("A100 80GB PCIe", {"tflops": 250, "tb_s": 1.6}),
