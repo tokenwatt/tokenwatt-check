@@ -128,6 +128,14 @@ def evaluate(inv: dict, load: dict, host_disk: dict, host_net: dict) -> tuple[st
     if isinstance(pend, str) and pend.lower() == "yes":
         f.append(Finding("WARN", "memory errors", "Retired memory pages are pending a reset.", "The card needs a reset to retire bad memory."))
 
+    d = load.get("_dcgm")
+    if d:
+        if d.get("result") == "fail":
+            f.append(Finding("FAIL", "DCGM diagnostics", f"dcgmi diag level {d.get('level')} failed: {', '.join(d.get('failed_tests') or [])}.",
+                             "NVIDIA's own diagnostics report a fault. Do not use this GPU."))
+        elif d.get("result") == "pass":
+            f.append(Finding("PASS", "DCGM diagnostics", f"dcgmi diag level {d.get('level')} passed ({d.get('tests_seen')} tests)."))
+
     tmax = tel.get("temp_c_max")
     if isinstance(tmax, (int, float)) and tmax >= 87:
         f.append(Finding("WARN", "temperature", f"Reached {tmax:.0f} °C under load.", "Hot; sustained work may throttle."))

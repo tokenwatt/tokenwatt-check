@@ -41,6 +41,7 @@ tokenwatt-check
 | Memory bandwidth | Device-to-device copy in TB/s | LLM token generation follows it closely |
 | PCIe link | Generation and width under load vs the card's maximum | Slow links slow model loading |
 | Memory errors | Uncorrected ECC errors, pending retired pages | Unreliable memory |
+| DCGM diagnostics | `dcgmi diag -r 1` when NVIDIA DCGM is installed (`--dcgm 2` for the longer run) | NVIDIA's own hardware checks |
 | Disk | 2 GB sequential write and read | How long weights take to load from disk |
 | Download | 20 s from the Hugging Face CDN | You pay for the minutes spent downloading weights |
 
@@ -54,6 +55,7 @@ tokenwatt-check --gpu 1            # another GPU
 tokenwatt-check --seconds 60       # longer load test
 tokenwatt-check --no-load          # inventory, disk and network only (no PyTorch needed)
 tokenwatt-check --no-net --no-disk
+tokenwatt-check --share --provider runpod   # add an anonymized copy to the public node statistics
 ```
 
 ## Reference values
@@ -72,7 +74,11 @@ If a healthy card scores low on your machine, please open an issue with your JSO
 
 ## Privacy
 
-Everything runs locally. Nothing is sent anywhere except the 20-second download test from huggingface.co.
+Everything runs locally. Nothing is sent anywhere except the 20-second download test from huggingface.co —
+unless you add `--share`. Then one anonymized report goes to TokenWatt: GPU model, driver, limits and measurements,
+CPU count and RAM size, and the provider name if you give one. Hostnames, GPU UUIDs, paths and your IP address are
+not kept ([privacy policy](https://www.tokenwatt.io/privacy.html)). Shared reports are published only as aggregate
+statistics per GPU model, which is how the healthy-card references get better for everyone.
 
 ## Supported
 

@@ -44,3 +44,30 @@ def test_summarize_windows_and_reasons():
     s = [{"t": i, "clocks.sm": 1900 + i, "power.draw": 600.0, "reasons": ["sw_power_cap"] if i % 2 else []} for i in range(10)]
     out = summarize(s, 2, 7)
     assert out["samples"] == 6 and out["throttle_reasons"]["sw_power_cap"] == 0.5
+
+
+def test_dcgm_failure_is_reported():
+    d = DEMOS["healthy-h100"]
+    load = {**d["load"], "_dcgm": {"level": 1, "result": "fail", "failed_tests": ["memory"], "tests_seen": 5}}
+    overall, findings, _ = evaluate(d["inventory"], load, d["disk"], d["download"])
+    assert overall == "FAIL" and any(f.check == "DCGM diagnostics" for f in findings)
+
+
+def test_share_payload_drops_identifiers(monkeypatch):
+    import json, urllib.request
+    from tokenwatt_check import cli
+    sent = {}
+
+    class R:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return b'{"id": "x"}'
+
+    def fake(req, timeout=0):
+        sent["body"] = json.loads(req.data)
+        return R()
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    cli.share({"tool": "tokenwatt-check", "host": {"hostname": "secret-host", "cpus": 8},
+               "inventory": {"name": "NVIDIA H100", "uuid": "GPU-123"}}, "runpod")
+    b = sent["body"]
+    assert "hostname" not in b["host"] and "uuid" not in b["inventory"] and b["provider_hint"] == "runpod"
