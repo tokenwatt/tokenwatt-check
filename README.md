@@ -18,24 +18,24 @@ tokenwatt-check
   OVERALL: ❌ FAIL
 
   ⚠️  power limit            GPU power limit is 500 W of a possible 700 W (71%).
-  ❌ clocks under load      SM clock under load averaged 787 MHz of 1980 MHz max (40%).
+  ❌ clocks under load      SM clock during the matmul averaged 560 MHz — 41% of a healthy H100 (1360 MHz).
                             → Far below normal. Possible causes: aggressive power cap, poor cooling or
                               power delivery, a degraded card. Ask for another machine.
-  ❌ BF16 matmul            262 TFLOPS — 40% of the healthy H100 reference (650 TFLOPS).
-  ⚠️  memory copy bandwidth  2.2 TB/s — 81% of the healthy H100 reference (2.7 TB/s).
+  ❌ BF16 matmul            280 TFLOPS — 41% of the healthy H100 reference (680 TFLOPS).
+  ❌ memory copy bandwidth  2.2 TB/s — 73% of the healthy H100 reference (3.0 TB/s).
   ✅ PCIe link              Gen5 x16.
   ✅ disk                   Sequential write 1,616 MB/s.
-  ✅ download               2,100 Mbit/s from Hugging Face (~6.3 min per 100 GB of weights).
+  ✅ download               2,100 Mbit/s from Hugging Face, one stream (~6.3 min per 100 GB of weights).
 ```
 
-(Example modeled on a real node; try `tokenwatt-check --demo throttled-h100`, `capped-h100` or `healthy-h100` without a GPU.)
+(Illustrative output modeled on a real under-performing node — see `src/tokenwatt_check/demo.py`. Try `tokenwatt-check --demo throttled-h100`, `capped-h100` or `healthy-h100` without a GPU.)
 
 ## What it checks
 
 | Check | How | Why it matters |
 |---|---|---|
 | Power limit | `nvidia-smi` power.limit vs power.max_limit | Hosts lower it to save power; throughput drops under load |
-| Clocks under load | SM clock sampled every second during a 30 s BF16 matmul | The clearest sign of a capped, hot or degraded card |
+| Clocks under load | SM clock sampled every second during a 30 s BF16 matmul, compared with a healthy card of the same model in the same test | The clearest sign of a capped, hot or degraded card |
 | Throttle reasons | nvidia-smi clock event reasons during load | Hardware or thermal slowdown means the card is protecting itself |
 | Compute | Sustained BF16 GEMM (8192²) in TFLOPS | Prompt processing and large batches scale with it |
 | Memory bandwidth | Device-to-device copy in TB/s | LLM token generation follows it closely |
@@ -58,10 +58,17 @@ tokenwatt-check --no-net --no-disk
 
 ## Reference values
 
-Compute and bandwidth are compared with a "healthy card" reference per GPU model (`src/tokenwatt_check/verdict.py`).
-They start from vendor specifications and public measurements and are being calibrated against nodes we measure;
-please open an issue with your JSON if a healthy card scores low. The power-limit and clock checks don't depend on
-those references.
+Compute, bandwidth and clock-under-load are compared with a healthy card of the same model (`src/tokenwatt_check/verdict.py`):
+
+| GPU | BF16 matmul | Clock during matmul | Copy bandwidth | Source |
+|---|---|---|---|---|
+| H100 SXM | 680 TFLOPS | 1,360 MHz | 3.0 TB/s | measured, RunPod Secure Cloud, 700 W |
+| H200 | 660 TFLOPS | 1,460 MHz | 4.3 TB/s | measured, RunPod Secure Cloud, 700 W |
+| others | | | | provisional (vendor specs, public measurements) |
+
+A dense matmul pulls a healthy card to its power limit, so its clock sits well below the maximum — a healthy H100 holds
+about 69% of max clock in this test. That's why the clock check compares against a healthy card rather than the maximum.
+If a healthy card scores low on your machine, please open an issue with your JSON so we can improve the references.
 
 ## Privacy
 
