@@ -77,8 +77,8 @@ If a healthy card scores low on your machine, please open an issue with your JSO
 Everything runs locally. Nothing is sent anywhere except the 20-second download test from huggingface.co —
 unless you add `--share`. Then one anonymized report goes to TokenWatt: GPU model, driver, limits and measurements,
 CPU count and RAM size, and the provider name if you give one. Hostnames, GPU UUIDs, paths and your IP address are
-not kept ([privacy policy](https://www.tokenwatt.io/privacy.html)). Shared reports are published only as aggregate
-statistics per GPU model, which is how the healthy-card references get better for everyone.
+not kept. Shared reports are published only as aggregate statistics per GPU model, which is how the healthy-card
+references get better for everyone. Details: [privacy policy](https://www.tokenwatt.io/privacy.html)
 
 ## Supported
 
