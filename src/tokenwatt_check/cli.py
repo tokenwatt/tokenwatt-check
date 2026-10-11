@@ -11,7 +11,7 @@ from pathlib import Path
 
 import urllib.request
 
-from . import __version__, dcgm, gpu, host, load
+from . import __version__, dcgm, gpu, host, load, watch
 from .demo import DEMOS
 from .verdict import evaluate, findings_json
 
@@ -124,7 +124,20 @@ def main(argv: list[str] | None = None) -> int:
                     help="send an anonymized copy (GPU model, settings and measurements only; no hostname, IP or IDs) "
                          "to TokenWatt's public node statistics")
     ap.add_argument("--provider", help="with --share: where the node is rented, e.g. runpod, vast, lambda, own")
+    ap.add_argument("--watch", action="store_true",
+                    help="keep watching all GPUs while your workload runs; flag power-limit cuts, throttling, clock "
+                         "collapse, PCIe drops and new ECC errors as they happen (Ctrl-C to stop and summarize)")
+    ap.add_argument("--interval", type=float, default=60, help="with --watch: seconds between samples (default 60)")
+    ap.add_argument("--hours", type=float, help="with --watch: stop after this many hours")
+    ap.add_argument("--log", help="with --watch: JSONL log path (default tokenwatt-watch-<time>.jsonl)")
+    ap.add_argument("--on-event", help="with --watch: shell command to run on each event; gets TWC_LEVEL, TWC_GPU, "
+                                       "TWC_KIND and TWC_MESSAGE in its environment (e.g. a curl to a webhook)")
     a = ap.parse_args(argv)
+
+    if a.watch:
+        if not gpu.available():
+            sys.exit("nvidia-smi not found. tokenwatt-check currently supports NVIDIA GPUs (AMD support is planned).")
+        return watch.run(interval=a.interval, hours=a.hours, log=a.log, on_event=a.on_event)
 
     t0 = time.time()
     raw = DEMOS[a.demo] if a.demo else run_checks(a)

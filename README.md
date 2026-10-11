@@ -56,7 +56,32 @@ tokenwatt-check --seconds 60       # longer load test
 tokenwatt-check --no-load          # inventory, disk and network only (no PyTorch needed)
 tokenwatt-check --no-net --no-disk
 tokenwatt-check --share --provider runpod   # add an anonymized copy to the public node statistics
+tokenwatt-check --watch            # keep watching during your workload (see below)
 ```
+
+## Watch mode: catch changes during the rental
+
+A check at the start can't see a host lowering the power limit halfway through your rental, a card that starts
+throttling when the room heats up, or a PCIe link that renegotiates down. Leave watch mode running next to your workload:
+
+```
+tokenwatt-check --watch                       # every 60 s, all GPUs, until Ctrl-C
+tokenwatt-check --watch --interval 30 --hours 24 --log node-a.jsonl
+tokenwatt-check --watch --on-event 'curl -s -X POST -d "$TWC_MESSAGE" https://hooks.example.com/gpu'
+```
+
+```
+watching every 60 s · log tokenwatt-watch-20261010-141500.jsonl · Ctrl-C to stop and summarize
+  GPU 0 NVIDIA H100 80GB HBM3: power limit 700.0 W, max clock 1980 MHz, PCIe Gen5 x16
+[16:42:07] ⚠️  GPU 0: power limit changed from 700 W to 525 W (75% of the 700 W at start) — throughput will drop
+[16:44:07] ❌ GPU 0: SM clock under load is 787 MHz, 40% of max (1980 MHz) — far below a healthy card; your work is running much slower
+```
+
+It flags, the moment they happen: power-limit changes, hardware or thermal throttling starting and ending, the SM
+clock under load falling below half of max for three samples in a row (healthy cards stay around two-thirds even at
+their power limit), temperature at 87 °C or more, PCIe width or generation dropping, and new uncorrected ECC errors.
+Every sample goes to a JSONL log; when you stop it you get a summary per GPU (lowest power limit, share of time under
+load and throttled) and an overall PASS / WARN / FAIL. Watch mode only reads `nvidia-smi`, so it adds no load.
 
 ## Reference values
 
