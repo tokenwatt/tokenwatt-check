@@ -7,7 +7,7 @@ GPU listings tell you the model — "H100 SXM, verified, 99.5% reliability" — 
 power limit lowered by the host and one ran at **787 MHz instead of ~1,900** under load: every token took 2.9× longer.
 Nothing on the listing showed it.
 
-`tokenwatt-check` finds that in about two minutes:
+`tokenwatt-check` finds that in about two minutes. (What each check means and what healthy values look like: [GPU health check guide](https://www.tokenwatt.io/gpu-health-check.html).)
 
 ```
 pip install tokenwatt-check torch    # torch is usually already there on GPU images
@@ -114,6 +114,12 @@ unless you add `--share`. Then one anonymized report goes to TokenWatt: GPU mode
 CPU count and RAM size, and the provider name if you give one. Hostnames, GPU UUIDs, paths and your IP address are
 not kept. Shared reports are published only as aggregate statistics per GPU model, which is how the healthy-card
 references get better for everyone. Details: [privacy policy](https://www.tokenwatt.io/privacy.html)
+
+## Learn more
+
+- [GPU health check guide](https://www.tokenwatt.io/gpu-health-check.html): every check explained, with healthy values and the nvidia-smi commands to run them by hand
+- [Cheapest per hour ≠ cheapest per token](https://www.tokenwatt.io/blog/rtx-4090-vs-l40s-vs-a100-vs-a40-llm-inference.html): what healthy cheaper GPUs deliver for LLM serving
+- [Remote node evaluation](https://www.tokenwatt.io/evaluation.html): we test your nodes and report health, capacity within your latency target and cost per million tokens
 
 ## Supported
 

@@ -75,7 +75,7 @@ def render(result: dict) -> str:
         lines += ["", "  " + " · ".join(f"{k}={v}" for k, v in m.items())]
     if result.get("demo"):
         lines += ["", f"  (demo: {result['demo']})"]
-    lines += ["", "  Method and reference values: https://www.tokenwatt.io/methodology.html", ""]
+    lines += ["", "  What each check means and healthy values: https://www.tokenwatt.io/gpu-health-check.html", ""]
     return "\n".join(lines)
 
 
