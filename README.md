@@ -91,7 +91,17 @@ Compute, bandwidth and clock-under-load are compared with a healthy card of the 
 |---|---|---|---|---|
 | H100 SXM | 680 TFLOPS | 1,360 MHz | 3.0 TB/s | measured, RunPod Secure Cloud, 700 W |
 | H200 | 660 TFLOPS | 1,460 MHz | 4.3 TB/s | measured, RunPod Secure Cloud, 700 W |
+| A100 SXM 80GB | 260 TFLOPS | 1,235 MHz | 1.75 TB/s | measured, 3 nodes, 400 W |
+| L40S | 170 TFLOPS | 1,215 MHz | 0.65 TB/s | measured, 2 nodes, 350 W |
+| RTX 4090 | 160 TFLOPS | 2,480 MHz | 0.92 TB/s | measured, 3 nodes, 450 W |
+| A40 | 107 TFLOPS | 1,300 MHz | 0.56 TB/s | measured, 2 nodes, 300 W |
 | others | | | | provisional (vendor specs, public measurements) |
+
+Copy bandwidth is what this test reaches, not the spec sheet: GDDR6 cards (L40S, A40, RTX 4090) reach roughly
+65–75% of their rated bandwidth in a device-to-device copy, HBM cards about 90%.
+
+The power-limit check compares with the card's default limit, not the board maximum: an RTX 4090 at its stock
+450 W is full power even if its board allows 500 W.
 
 A dense matmul pulls a healthy card to its power limit, so its clock sits well below the maximum — a healthy H100 holds
 about 69% of max clock in this test. That's why the clock check compares against a healthy card rather than the maximum.

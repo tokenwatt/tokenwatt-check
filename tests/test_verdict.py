@@ -71,3 +71,21 @@ def test_share_payload_drops_identifiers(monkeypatch):
                "inventory": {"name": "NVIDIA H100", "uuid": "GPU-123"}}, "runpod")
     b = sent["body"]
     assert "hostname" not in b["host"] and "uuid" not in b["inventory"] and b["provider_hint"] == "runpod"
+
+
+def test_reference_matching_respects_digit_boundaries():
+    assert reference_for("NVIDIA A40")[0] == "A40"
+    assert reference_for("NVIDIA RTX A4000") is None
+    assert reference_for("NVIDIA A100-SXM4-80GB")[0] == "A100-SXM4-80GB"
+    assert reference_for("NVIDIA A10")[0] == "A10"
+    assert reference_for("NVIDIA L40S")[0] == "L40S"
+    assert reference_for("NVIDIA GeForce RTX 4090")[0] == "RTX 4090"
+
+
+def test_power_limit_compares_with_default_not_board_max():
+    inv = {"name": "NVIDIA GeForce RTX 4090", "power.limit": 450.0, "power.max_limit": 500.0, "power.default_limit": 450.0}
+    overall, findings, metrics = evaluate(inv, {}, {}, {})
+    pl = next(f for f in findings if f.check == "power limit")
+    assert pl.level == "PASS" and "500" in pl.message and metrics["power_limit_pct"] == 100
+    inv["power.limit"] = 315.0
+    assert next(f for f in evaluate(inv, {}, {}, {})[1] if f.check == "power limit").level == "WARN"

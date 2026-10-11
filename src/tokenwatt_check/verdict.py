@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass
 
 # "Healthy" reference for this tool's own load tests: sustained dense BF16 GEMM (n=8192), the SM
@@ -17,13 +18,14 @@ REFERENCE = [
     ("H100", {"tflops": 680, "tb_s": 3.0, "gemm_mhz": 1360, "measured": "RunPod Secure Cloud, 700 W, 2026-10-09"}),  # SXM
     ("H200", {"tflops": 660, "tb_s": 4.3, "gemm_mhz": 1460, "measured": "RunPod Secure Cloud, 700 W, 2026-10-09"}),
     ("B200", {"tflops": 1400, "tb_s": 6.5}),
-    ("A100-SXM4-80GB", {"tflops": 270, "tb_s": 1.7}),
+    ("A100-SXM4-80GB", {"tflops": 260, "tb_s": 1.75, "gemm_mhz": 1235, "measured": "RunPod Secure Cloud, 400 W, 3 nodes, 2026-10-11"}),
     ("A100 80GB PCIe", {"tflops": 250, "tb_s": 1.6}),
     ("A100", {"tflops": 250, "tb_s": 1.3}),          # 40 GB
-    ("L40S", {"tflops": 250, "tb_s": 0.75}),
-    ("RTX 6000 Ada", {"tflops": 250, "tb_s": 0.8}),
+    ("L40S", {"tflops": 170, "tb_s": 0.65, "gemm_mhz": 1215, "measured": "RunPod Secure Cloud, 350 W, 2 nodes, 2026-10-11"}),
+    ("RTX 6000 Ada", {"tflops": 160, "tb_s": 0.7}),   # same AD102 die as L40S at 300 W
     ("RTX 5090", {"tflops": 200, "tb_s": 1.5}),
-    ("RTX 4090", {"tflops": 150, "tb_s": 0.85}),
+    ("RTX 4090", {"tflops": 160, "tb_s": 0.92, "gemm_mhz": 2480, "measured": "RunPod Secure Cloud, 450 W, 3 nodes, 2026-10-11"}),
+    ("A40", {"tflops": 107, "tb_s": 0.56, "gemm_mhz": 1300, "measured": "RunPod Secure Cloud, 300 W, 2 nodes, 2026-10-11"}),
     ("A10", {"tflops": 100, "tb_s": 0.5}),
 ]
 
@@ -32,7 +34,8 @@ def reference_for(name: str | None) -> tuple[str, dict] | None:
     if not name:
         return None
     for key, ref in REFERENCE:
-        if key.lower() in name.lower():
+        # the key must not continue with a digit: "A40" matches "NVIDIA A40" but not "RTX A4000"
+        if re.search(r"(?<![A-Za-z0-9])" + re.escape(key) + r"(?!\d)", name, re.IGNORECASE):
             return key, ref
     return None
 
@@ -50,16 +53,20 @@ def evaluate(inv: dict, load: dict, host_disk: dict, host_net: dict) -> tuple[st
     metrics: dict = {}
 
     # power cap
-    lim, mx = inv.get("power.limit"), inv.get("power.max_limit")
-    if isinstance(lim, (int, float)) and isinstance(mx, (int, float)) and mx:
-        ratio = lim / mx
+    # Compare with the card's default limit: some boards allow raising it above stock (an RTX 4090 at its
+    # 450 W default may report a 500 W maximum), and running at stock isn't a host cutting power.
+    lim, mx, dflt = inv.get("power.limit"), inv.get("power.max_limit"), inv.get("power.default_limit")
+    ref = dflt if isinstance(dflt, (int, float)) and dflt else mx
+    if isinstance(lim, (int, float)) and isinstance(ref, (int, float)) and ref:
+        ratio = lim / ref
         metrics["power_limit_pct"] = round(ratio * 100)
         if ratio < 0.95:
             f.append(Finding("WARN", "power limit",
-                             f"GPU power limit is {lim:.0f} W of a possible {mx:.0f} W ({ratio:.0%}).",
+                             f"GPU power limit is {lim:.0f} W, below the card's default of {ref:.0f} W ({ratio:.0%}).",
                              "The host lowered it. Expect lower throughput under heavy load; compare price per token, not per hour."))
         else:
-            f.append(Finding("PASS", "power limit", f"Full power limit: {lim:.0f} W."))
+            note = f" (the board allows up to {mx:.0f} W)" if isinstance(mx, (int, float)) and mx > lim * 1.02 else ""
+            f.append(Finding("PASS", "power limit", f"Full power limit: {lim:.0f} W{note}."))
 
     gemm = load.get("matmul") or {}
     tel = gemm.get("telemetry") or {}
