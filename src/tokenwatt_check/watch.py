@@ -119,11 +119,21 @@ class Watcher:
             elif t is not None and t < HOT_C - 5:
                 s["hot"] = False
 
-            for f, label in (("pcie.link.width.current", "PCIe link width"), ("pcie.link.gen.current", "PCIe generation")):
-                v, bv = _num(r.get(f)), _num(b.get(f))
-                if v and bv and v < bv and v != s.get(f):
-                    self.event("WARN", g, "pcie", f"{label} dropped from {bv} to {v}")
-                s[f] = v
+            w, bw = _num(r.get("pcie.link.width.current")), _num(b.get("pcie.link.width.current"))
+            if w and bw and w < bw and w != s.get("pcie.link.width.current"):
+                self.event("WARN", g, "pcie", f"PCIe link width dropped from {bw} to {w}")
+            s["pcie.link.width.current"] = w
+            # Idle GPUs drop the link to Gen1 to save power and go back up under load, so the generation only
+            # counts under load, against the highest generation this GPU has shown.
+            gen = _num(r.get("pcie.link.gen.current"))
+            peak = max(x for x in (s.get("gen_peak"), _num(b.get("pcie.link.gen.current")), gen) if x is not None) \
+                if gen is not None else s.get("gen_peak")
+            if loaded and gen and peak and gen < peak and gen != s.get("gen_reported"):
+                self.event("WARN", g, "pcie", f"PCIe generation under load dropped from {peak} to {gen}")
+                s["gen_reported"] = gen
+            elif loaded and gen == peak:
+                s["gen_reported"] = None
+            s["gen_peak"] = peak
 
             ecc = _num(r.get("ecc.errors.uncorrected.volatile.total"))
             if ecc is not None and s["ecc"] is not None and ecc > s["ecc"]:

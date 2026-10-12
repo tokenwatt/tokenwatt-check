@@ -71,3 +71,20 @@ def test_summary_overall():
     s = w.summary(5)
     assert s["overall"] == "WARN"
     assert s["gpus"][0]["power_limit_min"] == 525.0
+
+
+def test_idle_pcie_gen1_is_not_a_drop():
+    w = Watcher(quiet=True)
+    w.check([row()])
+    w.check([row(**{"utilization.gpu": 0, "pcie.link.gen.current": 1})])   # idle power saving
+    w.check([row()])
+    assert ("WARN", "pcie") not in kinds(w)
+
+
+def test_pcie_gen_drop_under_load():
+    w = Watcher(quiet=True)
+    w.check([row(**{"utilization.gpu": 0, "pcie.link.gen.current": 1})])   # watch started while idle
+    w.check([row()])                                                       # Gen5 under load
+    w.check([row(**{"pcie.link.gen.current": 3})])
+    w.check([row(**{"pcie.link.gen.current": 3})])
+    assert kinds(w).count(("WARN", "pcie")) == 1
