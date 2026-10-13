@@ -10,11 +10,15 @@ from dataclasses import asdict, dataclass
 # "measured" come from cards TokenWatt ran this tool on; the rest are provisional (vendor specs and
 # public measurements) until we measure one. Matched against nvidia-smi's name, most specific first.
 #
+# Verdicts against a provisional reference are capped at WARN: the reference itself may be off.
+# `spec_power_w` is NVIDIA's configurable power range for that board; a limit below its minimum is flagged
+# even when the host has made it the card's "default" (seen on H100 NVL rented at 310 W, spec 350–400 W).
+#
 # A dense GEMM pulls a healthy card to its power limit, so its clock sits well below clocks.max.sm
 # (an H100 SXM at 700 W holds ~1,360 MHz of 1,980). The clock check compares against `gemm_mhz`.
 REFERENCE = [
-    ("H100 NVL", {"tflops": 550, "tb_s": 3.3}),
-    ("H100 PCIe", {"tflops": 450, "tb_s": 1.7}),
+    ("H100 NVL", {"tflops": 550, "tb_s": 3.3, "spec_power_w": (350, 400)}),
+    ("H100 PCIe", {"tflops": 450, "tb_s": 1.7, "spec_power_w": (300, 350)}),
     ("H100", {"tflops": 680, "tb_s": 3.0, "gemm_mhz": 1360, "measured": "RunPod Secure Cloud, 700 W, 2026-10-09"}),  # SXM
     ("H200", {"tflops": 660, "tb_s": 4.3, "gemm_mhz": 1460, "measured": "RunPod Secure Cloud, 700 W, 2026-10-09"}),
     ("B200", {"tflops": 1400, "tb_s": 6.5}),
@@ -57,10 +61,16 @@ def evaluate(inv: dict, load: dict, host_disk: dict, host_net: dict) -> tuple[st
     # 450 W default may report a 500 W maximum), and running at stock isn't a host cutting power.
     lim, mx, dflt = inv.get("power.limit"), inv.get("power.max_limit"), inv.get("power.default_limit")
     ref = dflt if isinstance(dflt, (int, float)) and dflt else mx
+    spec = (reference_for(inv.get("name")) or ("", {}))[1].get("spec_power_w")
     if isinstance(lim, (int, float)) and isinstance(ref, (int, float)) and ref:
         ratio = lim / ref
         metrics["power_limit_pct"] = round(ratio * 100)
-        if ratio < 0.95:
+        if spec and lim < spec[0] * 0.98:
+            f.append(Finding("WARN", "power limit",
+                             f"GPU power limit is {lim:.0f} W, below NVIDIA's configurable range for this board "
+                             f"({spec[0]}–{spec[1]} W), although the host reports it as the default.",
+                             "Expect lower throughput under heavy load than the same GPU elsewhere; compare price per token, not per hour."))
+        elif ratio < 0.95:
             f.append(Finding("WARN", "power limit",
                              f"GPU power limit is {lim:.0f} W, below the card's default of {ref:.0f} W ({ratio:.0%}).",
                              "The host lowered it. Expect lower throughput under heavy load; compare price per token, not per hour."))
@@ -82,7 +92,10 @@ def evaluate(inv: dict, load: dict, host_disk: dict, host_net: dict) -> tuple[st
         metrics["clock_under_load_pct"] = round(r * 100)
         msg = (f"SM clock during the matmul averaged {clk:.0f} MHz — {r:.0%} of a healthy {ref[0]} ({base} MHz)"
                if base else f"SM clock during the matmul averaged {clk:.0f} MHz of {mxclk:.0f} MHz max")
-        if r < 0.6:
+        provisional = not (ref and ref[1].get("measured"))
+        if provisional:
+            msg += " (no measured reference for this GPU yet, so this is only a rough comparison)"
+        if r < 0.6 and not provisional:
             f.append(Finding("FAIL", "clocks under load", msg + ".",
                              "Far below normal. Possible causes: aggressive power cap, poor cooling or power delivery, a degraded card. Ask for another machine."))
         elif r < 0.8:
@@ -110,8 +123,13 @@ def evaluate(inv: dict, load: dict, host_disk: dict, host_net: dict) -> tuple[st
             continue
         pct = val / ref[1][key]
         metrics[f"{key}_vs_reference_pct"] = round(pct * 100)
-        msg = f"{val} {unit} — {pct:.0%} of the healthy {ref[0]} reference ({ref[1][key]} {unit})"
+        measured = bool(ref[1].get("measured"))
+        msg = (f"{val} {unit} — {pct:.0%} of the healthy {ref[0]} reference ({ref[1][key]} {unit})" if measured else
+               f"{val} {unit} — {pct:.0%} of a provisional {ref[0]} reference ({ref[1][key]} {unit}, from specs; "
+               "not yet measured by TokenWatt)")
         level = "FAIL" if pct < 0.75 else "WARN" if pct < 0.9 else "PASS"
+        if level == "FAIL" and not measured:
+            level = "WARN"
         why = ("Prompt processing (prefill) and large batches scale with compute." if key == "tflops"
                else "LLM token generation (decode) speed follows memory bandwidth closely.")
         f.append(Finding(level, label, msg + ".", "" if level == "PASS" else f"Below what this GPU model normally delivers. {why}"))

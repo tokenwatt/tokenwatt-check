@@ -89,3 +89,25 @@ def test_power_limit_compares_with_default_not_board_max():
     assert pl.level == "PASS" and "500" in pl.message and metrics["power_limit_pct"] == 100
     inv["power.limit"] = 315.0
     assert next(f for f in evaluate(inv, {}, {}, {})[1] if f.check == "power limit").level == "WARN"
+
+
+
+def test_provisional_reference_caps_at_warn_and_spec_power_floor():
+    # H100 NVL as rented: limit 310 W reported as the default, spec range 350-400 W; clocks and matmul far below
+    inv = {"name": "NVIDIA H100 NVL", "power.limit": 310.0, "power.default_limit": 310.0, "power.max_limit": 400.0,
+           "clocks.max.sm": 1785}
+    load = {"matmul": {"tflops": 339.1, "telemetry": {"sm_mhz_mean": 678}}, "copy": {"tb_s": 3.55}}
+    overall, findings, _ = evaluate(inv, load, {}, {})
+    lv = {f.check: f.level for f in findings}
+    assert lv["power limit"] == "WARN" and "350" in next(f.message for f in findings if f.check == "power limit")
+    assert lv["clocks under load"] == "WARN" and lv["BF16 matmul"] == "WARN"
+    assert "provisional" in next(f.message for f in findings if f.check == "BF16 matmul")
+    assert overall == "WARN"
+
+
+def test_measured_reference_still_fails_hard():
+    inv = {"name": "NVIDIA H100 80GB HBM3", "power.limit": 700.0, "power.default_limit": 700.0, "power.max_limit": 700.0,
+           "clocks.max.sm": 1980}
+    load = {"matmul": {"tflops": 300.0, "telemetry": {"sm_mhz_mean": 700}}}
+    overall, findings, _ = evaluate(inv, load, {}, {})
+    assert overall == "FAIL"
