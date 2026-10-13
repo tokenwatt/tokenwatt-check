@@ -83,6 +83,22 @@ their power limit), temperature at 87 °C or more, PCIe width or generation drop
 Every sample goes to a JSONL log; when you stop it you get a summary per GPU (lowest power limit, share of time under
 load and throttled) and an overall PASS / WARN / FAIL. Watch mode only reads `nvidia-smi`, so it adds no load.
 
+### Dashboard and email alerts (TokenWatt Monitor)
+
+To watch a fleet from one place, sign up at [tokenwatt.io/monitor](https://www.tokenwatt.io/monitor.html) (free during
+early access) and add `--monitor`. Every 5 minutes the watcher reports each GPU's latest reading, the window's
+min / mean / max of power, clock, temperature and utilization, and any new events. You get a private dashboard and an
+email when something changes or a node stops reporting.
+
+```
+export TOKENWATT_KEY=twk_…            # from the sign-up email; never put it on the command line
+tokenwatt-check --watch --monitor --node-name gpu-node-1
+```
+
+Only GPU telemetry is sent; the hostname isn't, unless you pass it as `--node-name` (an anonymous hash keeps nodes
+apart). `--report-url` points the reports at your own endpoint instead; the format is in
+[`push.py`](src/tokenwatt_check/push.py).
+
 ## Reference values
 
 Compute, bandwidth and clock-under-load are compared with a healthy card of the same model (`src/tokenwatt_check/verdict.py`):
@@ -110,7 +126,7 @@ If a healthy card scores low on your machine, please open an issue with your JSO
 ## Privacy
 
 Everything runs locally. Nothing is sent anywhere except the 20-second download test from huggingface.co —
-unless you add `--share`. Then one anonymized report goes to TokenWatt: GPU model, driver, limits and measurements,
+unless you add `--share` (below) or `--monitor` (above). Then one anonymized report goes to TokenWatt: GPU model, driver, limits and measurements,
 CPU count and RAM size, and the provider name if you give one. Hostnames, GPU UUIDs, paths and your IP address are
 not kept. Shared reports are published only as aggregate statistics per GPU model, which is how the healthy-card
 references get better for everyone. Details: [privacy policy](https://www.tokenwatt.io/privacy.html)

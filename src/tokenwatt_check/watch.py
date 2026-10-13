@@ -159,15 +159,16 @@ class Watcher:
         return out
 
 
-def run(interval: float = 60, hours: float | None = None, log: str | None = None, on_event: str | None = None) -> int:
+def run(interval: float = 60, hours: float | None = None, log: str | None = None, on_event: str | None = None,
+        pusher=None) -> int:
     w = Watcher(on_event)
     path = Path(log or f"tokenwatt-watch-{dt.datetime.now():%Y%m%d-%H%M%S}.jsonl")
     started = time.time()
     stop = {"now": False}
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stop.__setitem__("now", True))
-    print(f"watching every {interval:.0f} s{f' for {hours:g} h' if hours else ''} · log {path} · Ctrl-C to stop and summarize",
-          flush=True)
+    print(f"watching every {interval:.0f} s{f' for {hours:g} h' if hours else ''} · log {path} · Ctrl-C to stop and summarize"
+          + (f" · reporting to {pusher.url} every {pusher.every:.0f} s" if pusher else ""), flush=True)
     with path.open("a") as f:
         while not stop["now"] and not (hours and time.time() - started > hours * 3600):
             t = time.time()
@@ -179,6 +180,9 @@ def run(interval: float = 60, hours: float | None = None, log: str | None = None
             if rows:
                 first = w.samples == 0
                 w.check(rows)
+                if pusher:
+                    pusher.add(rows)
+                    pusher.maybe_flush(w.events)
                 f.write(json.dumps({"t": round(t, 1), "gpus": rows}, default=str) + "\n")
                 f.flush()
                 if first:
@@ -189,6 +193,8 @@ def run(interval: float = 60, hours: float | None = None, log: str | None = None
             while not stop["now"] and time.time() - t < interval:
                 time.sleep(min(1.0, interval))
     summary = w.summary((time.time() - started) / 60)
+    if pusher:
+        pusher.maybe_flush(w.events, final=True)
     with path.open("a") as f:
         f.write(json.dumps({"summary": summary}, default=str) + "\n")
     return {"PASS": 0, "WARN": 0, "FAIL": 2}[summary["overall"]]

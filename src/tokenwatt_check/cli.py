@@ -130,6 +130,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--interval", type=float, default=60, help="with --watch: seconds between samples (default 60)")
     ap.add_argument("--hours", type=float, help="with --watch: stop after this many hours")
     ap.add_argument("--log", help="with --watch: JSONL log path (default tokenwatt-watch-<time>.jsonl)")
+    ap.add_argument("--monitor", action="store_true",
+                    help="with --watch: report to TokenWatt Monitor (dashboard + email alerts); the key comes from "
+                         "$TOKENWATT_KEY or --key-file. Sign up at https://www.tokenwatt.io/monitor.html")
+    ap.add_argument("--key-file", help="with --monitor: file containing the monitor key (instead of $TOKENWATT_KEY)")
+    ap.add_argument("--report-url", default=None, help="with --monitor: endpoint (default TokenWatt Monitor)")
+    ap.add_argument("--report-every", type=float, default=300, help="with --monitor: seconds between reports (default 300)")
+    ap.add_argument("--node-name", help="with --monitor: name shown on the dashboard (default: none; the hostname is "
+                                        "not sent unless you pass it here)")
     ap.add_argument("--on-event", help="with --watch: shell command to run on each event; gets TWC_LEVEL, TWC_GPU, "
                                        "TWC_KIND and TWC_MESSAGE in its environment (e.g. a curl to a webhook)")
     a = ap.parse_args(argv)
@@ -137,7 +145,17 @@ def main(argv: list[str] | None = None) -> int:
     if a.watch:
         if not gpu.available():
             sys.exit("nvidia-smi not found. tokenwatt-check currently supports NVIDIA GPUs (AMD support is planned).")
-        return watch.run(interval=a.interval, hours=a.hours, log=a.log, on_event=a.on_event)
+        pusher = None
+        if a.monitor:
+            from . import push
+            key = push.load_key(a.key_file)
+            if not key:
+                print("--monitor needs a key: export TOKENWATT_KEY=... or pass --key-file (sign up at "
+                      "https://www.tokenwatt.io/monitor.html)")
+                return 2
+            pusher = push.Pusher(key, url=a.report_url or push.DEFAULT_URL, every=a.report_every, node=a.node_name,
+                                 version=__version__)
+        return watch.run(interval=a.interval, hours=a.hours, log=a.log, on_event=a.on_event, pusher=pusher)
 
     t0 = time.time()
     raw = DEMOS[a.demo] if a.demo else run_checks(a)
