@@ -88,3 +88,41 @@ def test_pcie_gen_drop_under_load():
     w.check([row(**{"pcie.link.gen.current": 3})])
     w.check([row(**{"pcie.link.gen.current": 3})])
     assert kinds(w).count(("WARN", "pcie")) == 1
+
+
+
+def test_brief_software_throttle_is_warn_and_end_reports_dip(monkeypatch):
+    import tokenwatt_check.watch as wm
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(wm.time, "time", lambda: clock["t"])
+    w = Watcher(quiet=True)
+    w.check([row(**{"clocks_event_reasons.active": "0x4"})])            # baseline (power cap only)
+    clock["t"] += 60
+    w.check([row(**{"clocks.sm": 1400})])
+    clock["t"] += 60
+    w.check([row(**{"clocks_event_reasons.active": "0x20", "clocks.sm": 1250, "temperature.gpu": 82})])  # sw thermal
+    clock["t"] += 60
+    w.check([row(**{"clocks.sm": 1400})])
+    levels = [(e["level"], e["message"]) for e in w.events if e["kind"] == "throttle"]
+    assert levels[0][0] == "WARN" and "82 °C" in levels[0][1]
+    assert levels[1][0] == "INFO" and "-11%" in levels[1][1] and "60 s" in levels[1][1]
+
+
+def test_sustained_software_throttle_escalates_once(monkeypatch):
+    import tokenwatt_check.watch as wm
+    clock = {"t": 0.0}
+    monkeypatch.setattr(wm.time, "time", lambda: clock["t"])
+    w = Watcher(quiet=True)
+    w.check([row()])
+    for _ in range(8):
+        clock["t"] += 60
+        w.check([row(**{"clocks_event_reasons.active": "0x20"})])
+    fails = [e for e in w.events if e["level"] == "FAIL"]
+    assert len(fails) == 1 and "sustained" in fails[0]["message"]
+
+
+def test_hardware_slowdown_is_fail_immediately():
+    w = Watcher(quiet=True)
+    w.check([row()])
+    w.check([row(**{"clocks_event_reasons.active": "0x48"})])           # hw_slowdown + hw_thermal_slowdown
+    assert [e["level"] for e in w.events if e["kind"] == "throttle"] == ["FAIL", "FAIL"]

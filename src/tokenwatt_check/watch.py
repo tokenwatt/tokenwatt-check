@@ -22,6 +22,11 @@ FIELDS = ["index", "name", "power.limit", "power.draw", "clocks.sm", "clocks.max
           "utilization.gpu", "clocks_event_reasons.active", "pcie.link.gen.current", "pcie.link.width.current",
           "ecc.errors.uncorrected.volatile.total"]
 BAD_REASONS = {"hw_slowdown", "hw_thermal_slowdown", "sw_thermal_slowdown", "hw_power_brake_slowdown"}
+# Graded by effect (24-hour soak, 2026-10-14: 21 one-minute thermal throttles on an RTX 4090 cost < 1% throughput):
+# hardware slowdowns are the card protecting itself → FAIL at once; a software thermal slowdown is a WARN unless
+# it lasts SUSTAINED_SECONDS, then it's escalated to FAIL. Every episode's end reports its duration and clock dip.
+HARD_REASONS = {"hw_slowdown", "hw_thermal_slowdown", "hw_power_brake_slowdown"}
+SUSTAINED_SECONDS = 300
 CLOCK_COLLAPSE = 0.5      # SM clock under load below this share of max (healthy cards stay ~0.65+ even at the power limit)
 COLLAPSE_SAMPLES = 3      # consecutive samples before flagging
 LOAD_UTIL = 90            # utilization % that counts as "under load"
@@ -87,10 +92,40 @@ class Watcher:
             if pl is not None:
                 st["min_power_limit"] = min(st["min_power_limit"] if st["min_power_limit"] is not None else pl, pl)
 
+            now = time.time()
+            sm_now, t_now = _num(r.get("clocks.sm")), _num(r.get("temperature.gpu"))
+            eps = s.setdefault("episodes", {})
             for name in sorted((reasons & BAD_REASONS) - s["reasons"]):
-                self.event("FAIL", g, "throttle", f"{name.replace('_', ' ')} started")
+                hard = name in HARD_REASONS
+                eps[name] = {"start": now, "clock_before": s.get("last_clock"), "min_clock": sm_now, "max_temp": t_now,
+                             "escalated": False}
+                self.event("FAIL" if hard else "WARN", g, "throttle",
+                           f"{name.replace('_', ' ')} started"
+                           + (f" at {t_now:.0f} °C" if t_now is not None else "")
+                           + (" (the card protecting itself)" if hard else ""))
+            for name in reasons & BAD_REASONS & s["reasons"]:
+                ep = eps.get(name)
+                if not ep:
+                    continue
+                if sm_now is not None:
+                    ep["min_clock"] = sm_now if ep["min_clock"] is None else min(ep["min_clock"], sm_now)
+                if t_now is not None:
+                    ep["max_temp"] = t_now if ep["max_temp"] is None else max(ep["max_temp"], t_now)
+                if name not in HARD_REASONS and not ep["escalated"] and now - ep["start"] >= SUSTAINED_SECONDS:
+                    ep["escalated"] = True
+                    self.event("FAIL", g, "throttle", f"{name.replace('_', ' ')} sustained for "
+                               f"{(now - ep['start']) / 60:.0f} min — throughput is likely affected")
             for name in sorted((s["reasons"] & BAD_REASONS) - reasons):
-                self.event("INFO", g, "throttle", f"{name.replace('_', ' ')} ended")
+                ep = eps.pop(name, None) or {}
+                dur = now - ep["start"] if ep.get("start") else None
+                dip = ""
+                if ep.get("min_clock") and ep.get("clock_before"):
+                    dip = f"; lowest SM clock {ep['min_clock']:.0f} MHz ({ep['min_clock'] / ep['clock_before'] - 1:+.0%})"
+                self.event("INFO", g, "throttle", f"{name.replace('_', ' ')} ended"
+                           + (f" after {dur / 60:.0f} min" if dur and dur >= 90 else f" after {dur:.0f} s" if dur else "")
+                           + dip + (f"; peak {ep['max_temp']:.0f} °C" if ep.get("max_temp") is not None else ""))
+            if sm_now is not None and not (reasons & BAD_REASONS):
+                s["last_clock"] = sm_now
             s["reasons"] = reasons
             for name in reasons:
                 st["reason_counts"][name] = st["reason_counts"].get(name, 0) + 1

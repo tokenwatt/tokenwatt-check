@@ -77,7 +77,7 @@ watching every 60 s · log tokenwatt-watch-20261010-141500.jsonl · Ctrl-C to st
 [16:44:07] ❌ GPU 0: SM clock under load is 787 MHz, 40% of max (1980 MHz) — far below a healthy card; your work is running much slower
 ```
 
-It flags, the moment they happen: power-limit changes, hardware or thermal throttling starting and ending, the SM
+It flags, the moment they happen: power-limit changes, hardware throttling (FAIL), software thermal throttling (WARN, escalated to FAIL if it lasts 5 minutes; when it ends you get its duration, clock dip and peak temperature), the SM
 clock under load falling below half of max for three samples in a row (healthy cards stay around two-thirds even at
 their power limit), temperature at 87 °C or more, PCIe width or generation dropping, and new uncorrected ECC errors.
 Every sample goes to a JSONL log; when you stop it you get a summary per GPU (lowest power limit, share of time under
