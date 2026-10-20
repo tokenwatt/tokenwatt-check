@@ -4,10 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tokenwatt-check"
-version = "0.4.1"
+version = "0.4.2"
 description = "Check whether the GPU you rented performs like it should: power cap, clocks under load, compute, memory bandwidth, PCIe, disk and network."
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.9"
 authors = [{ name = "TokenWatt", email = "hello@tokenwatt.io" }]
 keywords = ["gpu", "benchmark", "h100", "cloud", "llm", "inference", "nvidia", "vast.ai", "runpod"]
@@ -28,6 +29,9 @@ dev = ["pytest>=7"]
 [project.urls]
 Homepage = "https://www.tokenwatt.io"
 Methodology = "https://www.tokenwatt.io/methodology.html"
+"Health check guide" = "https://www.tokenwatt.io/gpu-health-check.html"
+Repository = "https://github.com/tokenwatt/tokenwatt-check"
+Issues = "https://github.com/tokenwatt/tokenwatt-check/issues"
 
 [project.scripts]
 tokenwatt-check = "tokenwatt_check.cli:main"
