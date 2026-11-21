@@ -27,7 +27,7 @@ REFERENCE = [
     ("A100", {"tflops": 250, "tb_s": 1.3}),          # 40 GB
     ("L40S", {"tflops": 170, "tb_s": 0.65, "gemm_mhz": 1215, "measured": "RunPod Secure Cloud, 350 W, 2 nodes, 2026-10-11"}),
     ("RTX 6000 Ada", {"tflops": 160, "tb_s": 0.7}),   # same AD102 die as L40S at 300 W
-    ("RTX 5090", {"tflops": 200, "tb_s": 1.5}),
+    ("RTX 5090", {"tflops": 205, "tb_s": 1.5, "gemm_mhz": 2550, "measured": "community, own card, 575 W, 2 runs, 2026-11-21"}),
     ("RTX 4090", {"tflops": 160, "tb_s": 0.92, "gemm_mhz": 2480, "measured": "RunPod Secure Cloud, 450 W, 3 nodes, 2026-10-11"}),
     ("A40", {"tflops": 107, "tb_s": 0.56, "gemm_mhz": 1300, "measured": "RunPod Secure Cloud, 300 W, 2 nodes, 2026-10-11"}),
     ("A10", {"tflops": 100, "tb_s": 0.5}),

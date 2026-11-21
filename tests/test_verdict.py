@@ -111,3 +111,15 @@ def test_measured_reference_still_fails_hard():
     load = {"matmul": {"tflops": 300.0, "telemetry": {"sm_mhz_mean": 700}}}
     overall, findings, _ = evaluate(inv, load, {}, {})
     assert overall == "FAIL"
+
+
+def test_rtx5090_measured_reference():
+    # values from a stock RTX 5090 at 575 W (two runs: 206.6 / 209.0 TFLOPS, 2,546 / 2,551 MHz, 1.51 / 1.49 TB/s)
+    inv = {"name": "NVIDIA GeForce RTX 5090", "power.limit": 575.0, "power.default_limit": 575.0,
+           "power.max_limit": 575.0, "clocks.max.sm": 3090}
+    load = {"matmul": {"tflops": 206.6, "telemetry": {"sm_mhz_mean": 2546.4}}, "copy": {"tb_s": 1.51}}
+    overall, findings, _ = evaluate(inv, load, {}, {})
+    lv = {f.check: f.level for f in findings}
+    assert lv["BF16 matmul"] == lv["memory copy bandwidth"] == lv["clocks under load"] == "PASS"
+    assert "healthy RTX 5090 reference" in next(f.message for f in findings if f.check == "BF16 matmul")
+    assert "no measured reference" not in next(f.message for f in findings if f.check == "clocks under load")
