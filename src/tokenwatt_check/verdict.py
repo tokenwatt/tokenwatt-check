@@ -7,8 +7,9 @@ from dataclasses import asdict, dataclass
 
 # "Healthy" reference for this tool's own load tests: sustained dense BF16 GEMM (n=8192), the SM
 # clock during that GEMM, and device-to-device copy bandwidth counted as read+write. Entries marked
-# "measured" come from cards TokenWatt ran this tool on; the rest are provisional (vendor specs and
-# public measurements) until we measure one. Matched against nvidia-smi's name, most specific first.
+# "measured" come from cards this tool ran on: TokenWatt's rented nodes, or a contributor's card with the
+# --json output in the pull request (the source says which); the rest are provisional (vendor specs and
+# public measurements) until someone measures one. Matched against nvidia-smi's name, most specific first.
 #
 # Verdicts against a provisional reference are capped at WARN: the reference itself may be off.
 # `spec_power_w` is NVIDIA's configurable power range for that board; a limit below its minimum is flagged
