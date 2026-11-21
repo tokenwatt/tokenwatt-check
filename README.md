@@ -109,6 +109,7 @@ Compute, bandwidth and clock-under-load are compared with a healthy card of the 
 | H200 | 660 TFLOPS | 1,460 MHz | 4.3 TB/s | measured, RunPod Secure Cloud, 700 W |
 | A100 SXM 80GB | 260 TFLOPS | 1,235 MHz | 1.75 TB/s | measured, 3 nodes, 400 W |
 | L40S | 170 TFLOPS | 1,215 MHz | 0.65 TB/s | measured, 2 nodes, 350 W |
+| RTX 5090 | 205 TFLOPS | 2,550 MHz | 1.5 TB/s | measured, 1 card (community), 575 W |
 | RTX 4090 | 160 TFLOPS | 2,480 MHz | 0.92 TB/s | measured, 3 nodes, 450 W |
 | A40 | 107 TFLOPS | 1,300 MHz | 0.56 TB/s | measured, 2 nodes, 300 W |
 | others | | | | provisional (vendor specs, public measurements) |
